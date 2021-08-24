@@ -2,7 +2,9 @@ package controller
 
 import (
 	"com.w1nd/firstgin/common"
+	"com.w1nd/firstgin/dto"
 	"com.w1nd/firstgin/model"
+	"com.w1nd/firstgin/response"
 	"com.w1nd/firstgin/util"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -14,16 +16,26 @@ import (
 func Register(c *gin.Context) {
 	DB := common.DB
 	// 获取参数
-	name := c.PostForm("name")
-	telephone := c.PostForm("telephone")
-	password := c.PostForm("password")
+	// 使用map获取请求的参数
+	//var resultMap = make(map[string]string)
+	//json.NewDecoder(c.Request.Body).Decode(&resultMap)
+	// 使用struct获取请求的参数
+	//var requestUser = model.User{}
+	//json.NewDecoder(c.Request.Body).Decode(&requestUser)
+	// 使用gin带的bind
+	var requestUser = model.User{}
+	c.Bind(&requestUser)
+
+	name := requestUser.Name
+	telephone := requestUser.Telephone
+	password := requestUser.Password
 	// 数据验证
 	if len(telephone) != 11 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "msg": "手机号必须为11位"})
+		response.Response(c, http.StatusUnprocessableEntity, 422, nil, "手机号必须为11位")
 		return
 	}
 	if len(password) < 6 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "msg": "密码不能小于6位"})
+		response.Response(c, http.StatusUnprocessableEntity, 422, nil, "密码必须小于6位")
 		return
 	}
 
@@ -33,13 +45,13 @@ func Register(c *gin.Context) {
 	log.Println(name, telephone, password)
 	// 判断手机号是否存在
 	if isTelephoneExist(DB, telephone) {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "msg": "用户已经存在"})
+		response.Response(c, http.StatusUnprocessableEntity, 422, nil, "用户已经存在")
 		return
 	}
 	// 创建用户
 	hasedPassword, err  := bcrypt.GenerateFromPassword([]byte(password),bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "加密失败"})
+		response.Response(c, http.StatusUnprocessableEntity, 500, nil, "加密失败")
 		return
 	}
 	newUser := model.User{
@@ -48,9 +60,16 @@ func Register(c *gin.Context) {
 		Password:  string(hasedPassword),
 	}
 	DB.Create(&newUser)
-	c.JSON(200, gin.H{
-		"msg": "注册成功",
-	})
+
+	//	发送token
+	token , err:= common.ReleaseToken(newUser)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"msg": "系统错误"})
+		log.Printf("token generate error : %v", err)
+		return
+	}
+	//	返回结果
+	response.Success(c, gin.H{"token": token}, "注册成功")
 }
 
 func Login(c *gin.Context) {
@@ -79,13 +98,23 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code":400, "msg": "密码错误"})
 		return
 	}
-//	发送token
-	token := "11"
-//	返回结果
-	c.JSON(200, gin.H{
+	//	发送token
+	token , err:= common.ReleaseToken(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"msg": "系统错误"})
+		log.Printf("token generate error : %v", err)
+		return
+	}
+	//	返回结果
+	response.Success(c, gin.H{"token": token}, "登陆成功")
+}
+
+func Info(c *gin.Context)  {
+	user, _ := c.Get("user")
+
+	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
-		"data": gin.H{"token": token},
-		"msg": "登陆成功",
+		"data": gin.H{"user": dto.ToUserDto(user.(model.User))},
 	})
 }
 
