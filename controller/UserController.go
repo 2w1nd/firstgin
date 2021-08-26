@@ -29,6 +29,7 @@ func Register(c *gin.Context) {
 	name := requestUser.Name
 	telephone := requestUser.Telephone
 	password := requestUser.Password
+	log.Println(telephone)
 	// 数据验证
 	if len(telephone) != 11 {
 		response.Response(c, http.StatusUnprocessableEntity, 422, nil, "手机号必须为11位")
@@ -68,22 +69,27 @@ func Register(c *gin.Context) {
 		log.Printf("token generate error : %v", err)
 		return
 	}
+	log.Println(token)
 	//	返回结果
-	response.Success(c, gin.H{"token": token}, "注册成功")
+	response.Success(c, "注册成功", gin.H{"token": token})
 }
 
 func Login(c *gin.Context) {
 	db := common.GetDB()
-//	获取参数
-	telephone := c.PostForm("telephone")
-	password := c.PostForm("password")
-//	数据验证
+	// 使用gin带的bind
+	var requestUser = model.User{}
+	c.Bind(&requestUser)
+
+	telephone := requestUser.Telephone
+	password := requestUser.Password
+	log.Println(telephone)
+	// 数据验证
 	if len(telephone) != 11 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "msg": "手机号必须为11位"})
+		response.Response(c, http.StatusUnprocessableEntity, 422, nil, "手机号必须为11位")
 		return
 	}
 	if len(password) < 6 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "msg": "密码不能小于6位"})
+		response.Response(c, http.StatusUnprocessableEntity, 422, nil, "密码必须小于6位")
 		return
 	}
 //	判断手机号是否存在
@@ -106,7 +112,7 @@ func Login(c *gin.Context) {
 		return
 	}
 	//	返回结果
-	response.Success(c, gin.H{"token": token}, "登陆成功")
+	response.Success(c, "登陆成功", gin.H{"token": token})
 }
 
 func Info(c *gin.Context)  {
